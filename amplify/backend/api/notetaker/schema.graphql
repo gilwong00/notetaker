@@ -1,4 +1,9 @@
-type Note @model {
+# any schema type that uses the @auth directive must also have the @model directive
+# within auth we can specify the auth rules, in this case we only want the owners to see their own notes
+# however, if we had auth groups set up, we can change auth rules to allow specific auth groups
+# allow: groups, groups: ['which groups we want to have access']
+
+type Note @model @auth(rules: [{ allow: owner }]) {
   id: ID!
   note: String!
 }

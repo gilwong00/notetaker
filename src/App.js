@@ -1,27 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { API, graphqlOperation } from 'aws-amplify';
+import { API, graphqlOperation, Auth } from 'aws-amplify';
 import { withAuthenticator } from 'aws-amplify-react';
 import { createNote, deleteNote } from './graphql/mutations';
 import { listNotes } from './graphql/queries';
+import { onCreateNote, onDeleteNote } from './graphql/subscriptions';
 import './App.css';
 
 function App() {
   const [notes, setNotes] = useState([]);
   const [newNote, setNewNote] = useState('');
+  const [userName, setUserName] = useState('');
 
   const handleSubmit = async e => {
     e.preventDefault();
-    const { data } = await API.graphql(
+    // using subscrptions instead of manually updating state
+
+    // const { data } = await API.graphql(
+    //   graphqlOperation(createNote, { input: { note: newNote } })
+    // );
+    // setNotes([...notes, data.createNote]);
+
+    await API.graphql(
       graphqlOperation(createNote, { input: { note: newNote } })
     );
-    setNotes([...notes, data.createNote]);
     setNewNote('');
   };
 
   const removeNote = async id => {
-    await API.graphql(graphqlOperation(deleteNote, { input: { id } }));
-    const currenNotes = notes.slice();
-    setNotes([...currenNotes.filter(note => note.id !== id)]);
+    return await API.graphql(graphqlOperation(deleteNote, { input: { id } }));
+    // using subscrptions instead of manually updating state
+    // const currenNotes = notes.slice();
+    // setNotes([...currenNotes.filter(note => note.id !== id)]);
   };
 
   useEffect(() => {
@@ -30,8 +39,44 @@ function App() {
       setNotes(res.data.listNotes.items);
     };
 
+		// we need username for our subscriptions since we specified an auth rule on our note schema
+    const getUser = async () => {
+      const user = await Auth.currentUserInfo();
+      setUserName(user.username);
+    };
+
     fetchNotes();
+    getUser();
   }, []);
+
+  // subscriptions
+  useEffect(() => {
+    const createNoteListener = API.graphql(
+      graphqlOperation(onCreateNote, { owner: userName })
+    ).subscribe({
+      next: noteData => {
+        const newNote = noteData.value.data.onCreateNote;
+        const previousNotes = [...notes.filter(note => note.id !== newNote.id)];
+        setNotes([...previousNotes, newNote]);
+      }
+    });
+    const deleteNoteListener = API.graphql(
+      graphqlOperation(onDeleteNote, { owner: userName })
+    ).subscribe({
+      next: noteData => {
+        const deletedNote = noteData.value.data.onDeleteNote;
+        const filteredNotes = [
+          ...notes.filter(note => note.id !== deletedNote.id)
+        ];
+        setNotes(filteredNotes);
+      }
+    });
+
+    return () => {
+      createNoteListener.unsubscribe();
+      deleteNoteListener.unsubscribe();
+    };
+  }, [notes, userName]);
 
   return (
     <div className='container'>
@@ -52,6 +97,7 @@ function App() {
       <ul>
         {notes.map(note => {
           return (
+            // can possibly add an update note functionality
             <li className='note-item' key={note.id}>
               {note.note}{' '}
               <span onClick={() => removeNote(note.id)}>&times;</span>
