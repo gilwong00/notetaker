@@ -3,7 +3,7 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background-color: red;
+  background-color: orange;
 }
 
 h1 {
@@ -16,11 +16,6 @@ form {
 
 form > input {
   padding: 2px;
-}
-
-ul {
-  display: flex;
-  align-items: center;
 }
 
 .note-item {
